@@ -1,1 +1,82 @@
+______________________________________________________________________________________________________________________________
+Echofeel to DHL sync job through jenkins
+
+Overview: To create a jenkins pipeline which pull the source code from Echofeel git and Push it to the DHL git repo.
+______________________________________________________________________________________________________________________________
+
+Prerequisites: Credentiols from DHL, Git hub token Echofeel and DHL, Git repo URL of Echofeel and DHL.
+________________________________________________________________________________________________________________________________
+Creation of credentiols:
+UserName: srv-enterpriseportal, id : srv-enterpriseportal-git-token ....from DHL git
+Kind type: Secret, ID: echofeelgittoken .... git token from EchoFeel git
+________________________________________________________________________________________________________________________________________
+using above credentiols in Jenkins file which  is stored in DHL git repo.(https://git.dhl.com/EnterprisePortal/echotodhlsync.git)
+Jenkinsfile :
+.......................................................................................................................................................
+def choice=[]
+node {
+    choice = params["service"].split(",")
+}
+pipeline {
+    agent {
+        kubernetes {
+            cloud "prod-prg"
+            inheritFrom 'jenkins-slave-prg'
+        }
+    }
+
+    stages {
+        stage('service'){
+            steps{
+				withCredentials([string(credentialsId: 'entportalgittoken', variable: 'dhltoken'), string(credentialsId: 'echofeelgittoken', variable: 'echofeeltoken')]) {
+                    script{
+						def tests = [:]
+						for (service in choice) {
+							def service_name_list = service.split("-")
+							def service_name = service_name_list.join("-")
+							print(service_name)
+							tests["$service_name"] = {
+							stage("$service_name") {
+								def repo_name="Entportal-${service_name}.git"
+								def echofeelgit_repo_url="https://oauth2:${echofeeltoken}@github.com/echofeelgit/${repo_name}"
+								def dhl_repo_url="https://oauth2:${dhltoken}@git.dhl.com/EnterprisePortal/${repo_name}"
+								sh '''
+									rm -rf ''' +repo_name+ '''
+									git clone --bare ''' +echofeelgit_repo_url+ '''
+									cd ''' +repo_name+ '''
+									git push --mirror ''' +dhl_repo_url+ '''
+									cd ..
+								'''
+								}
+							}
+						}
+						parallel tests
+					}
+				}
+            }
+        }
+    }
+}
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+____________________________________________________________________________________________________________________________________________________________________
+Creted job in Jenkins and add Active Parameters then write groovy script for diffrent repos which needs to fetch.
+_____________________________________________________________________________________________________________________________________________________________
+
+Troubleshooting : 
+If Git repo havings .var files and repo size is more than 25MB it wont fetch.
+Need to remove all .jar files and only keep source code.
+due to unproper credentials and permissions NullPointer error can occur. 
+
+__________________________________________________________________________________________________________________________________________________________________
+_____________________________________________________________________________________________________________________________________________________________________
+
+
+
+
+
+
+
+
+
+
 
